@@ -6,20 +6,6 @@ import pyrealsense2 as rs
 
 
 def overlay(image, mask, color, alpha, resize=None):
-    """Combines image and its segmentation mask into a single image.
-
-    Params:
-        image: Training image. np.ndarray,
-        mask: Segmentation mask. np.ndarray,
-        color: Color for segmentation mask rendering.  tuple[int, int, int] = (255, 0, 0)
-        alpha: Segmentation mask's transparency. float = 0.5,
-        resize: If provided, both image and its mask are resized before blending them together.
-        tuple[int, int] = (1024, 1024))
-
-    Returns:
-        image_combined: The combined image. np.ndarray
-
-    """
     # color = color[::-1]
     colored_mask = np.expand_dims(mask, 0).repeat(3, axis=0)
     colored_mask = np.moveaxis(colored_mask, 0, -1)
@@ -59,7 +45,7 @@ pipeline.start(config)
 print("[INFO] Camera ready.")
 
 # Load a model
-model = YOLO("yolov8m-seg.pt")
+model = YOLO("yolov8n-seg.pt")
 class_names = model.names
 print('Class Names: ', class_names)
 colors = [[random.randint(0, 255) for _ in range(3)] for _ in class_names]
