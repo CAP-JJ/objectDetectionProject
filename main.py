@@ -38,6 +38,7 @@ def plot_one_box(x, img, color=None, label=None, line_thickness=3):
 # Initialize RealSense camera
 pipeline = rs.pipeline()
 config = rs.config()
+config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
 config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
 
 print("[INFO] Starting streaming...")
@@ -52,11 +53,13 @@ colors = [[random.randint(0, 255) for _ in range(3)] for _ in class_names]
 
 while True:
     frames = pipeline.wait_for_frames()
+    depth_frame = frames.get_depth_frame()
     color_frame = frames.get_color_frame()
     if not color_frame:
         continue
 
     color_image = np.asanyarray(color_frame.get_data())
+    depth_image = np.asanyarray(depth_frame.get_data())
 
     h, w, _ = color_image.shape
     results = model.predict(color_image, stream=True)
@@ -71,14 +74,15 @@ while True:
         for seg, box in zip(masks.data.cpu().numpy(), boxes):
             seg = cv2.resize(seg, (w, h))
             color_image = overlay(color_image, seg, colors[int(box.cls)], 0.4)
-
+            distanceArr = np.average(np.multiply(seg, depth_image))
+            distance = distanceArr[distanceArr != 0].mean()
             xmin = int(box.data[0][0])
             ymin = int(box.data[0][1])
             xmax = int(box.data[0][2])
             ymax = int(box.data[0][3])
 
             plot_one_box([xmin, ymin, xmax, ymax], color_image, colors[int(box.cls)],
-                         f'{class_names[int(box.cls)]} {float(box.conf):.3}')
+                         f'{class_names[int(box.cls)]} {float(box.conf):.3} {float(distance):.3}')
 
     cv2.imshow('img', color_image)
     if cv2.waitKey(1) & 0xFF == ord('q'):
