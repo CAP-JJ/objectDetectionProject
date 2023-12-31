@@ -3,6 +3,7 @@ import cv2
 import random
 import numpy as np
 import pyrealsense2 as rs
+import math
 
 
 def overlay(image, mask, color, alpha, resize=None):
@@ -40,6 +41,7 @@ pipeline = rs.pipeline()
 config = rs.config()
 config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
 config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+align = rs.align(rs.stream.depth)
 
 print("[INFO] Starting streaming...")
 pipeline.start(config)
@@ -53,13 +55,17 @@ colors = [[random.randint(0, 255) for _ in range(3)] for _ in class_names]
 
 while True:
     frames = pipeline.wait_for_frames()
-    depth_frame = frames.get_depth_frame()
+    aligned_frames = align.process(frames)
+    depth_frame = aligned_frames.get_depth_frame()
+    aligned_color_frame = aligned_frames.get_color_frame()
     color_frame = frames.get_color_frame()
-    if not color_frame:
-        continue
 
-    color_image = np.asanyarray(color_frame.get_data())
+    if not depth_frame or not aligned_color_frame: continue
+
+    color_intrin = aligned_color_frame.profile.as_video_stream_profile().intrinsics
     depth_image = np.asanyarray(depth_frame.get_data())
+#    color_image = np.asanyarray(aligned_color_frame.get_data())
+    color_image = np.asanyarray(color_frame.get_data())
 
     h, w, _ = color_image.shape
     results = model.predict(color_image, stream=True)
@@ -74,15 +80,20 @@ while True:
         for seg, box in zip(masks.data.cpu().numpy(), boxes):
             seg = cv2.resize(seg, (w, h))
             color_image = overlay(color_image, seg, colors[int(box.cls)], 0.4)
-            distanceArr = np.average(np.multiply(seg, depth_image))
-            distance = distanceArr[distanceArr != 0].mean()
+
+            count = (seg == 1).sum()
+            x, y = np.argwhere(seg == 1).sum(0) / count
+            depth = depth_frame.get_distance(int(y), int(x))
+            dx, dy, dz = rs.rs2_deproject_pixel_to_point(color_intrin, [y, x], depth)
+            distance = math.sqrt(((dx) ** 2) + ((dy) ** 2) + ((dz) ** 2))
+
             xmin = int(box.data[0][0])
             ymin = int(box.data[0][1])
             xmax = int(box.data[0][2])
             ymax = int(box.data[0][3])
 
             plot_one_box([xmin, ymin, xmax, ymax], color_image, colors[int(box.cls)],
-                         f'{class_names[int(box.cls)]} {float(box.conf):.3} {float(distance):.3}')
+                         f'{class_names[int(box.cls)]} {float(box.conf):.3} {float(100*distance):.3}')
 
     cv2.imshow('img', color_image)
     if cv2.waitKey(1) & 0xFF == ord('q'):
