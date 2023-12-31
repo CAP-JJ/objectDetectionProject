@@ -45,7 +45,7 @@ pipeline.start(config)
 print("[INFO] Camera ready.")
 
 # Load a model
-model = YOLO("yolov8x-seg.pt")
+model = YOLO("yolov8n-seg.pt")
 class_names = model.names
 print('Class Names: ', class_names)
 colors = [[random.randint(0, 255) for _ in range(3)] for _ in class_names]
